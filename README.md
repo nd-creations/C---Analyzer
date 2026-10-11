@@ -4,8 +4,7 @@ A simple web-based C code analyzer project.
 
 ## Live Demo
 
-[Click here to use C Analyzer]
-(inquisitive-sprite-2c5b1d.netlify.app)
+[Click here to use C Analyzer](inquisitive-sprite-2c5b1d.netlify.app)
 
 ## Features
 
