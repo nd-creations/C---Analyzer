@@ -1,0 +1,1565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>C Program Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Bebas+Neue&family=Outfit:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #08090c;
+  --paper: #f0ede6;
+  --paper2: #e8e4db;
+  --paper3: #ddd8ce;
+  --accent: #ff3f1f;
+  --accent2: #1a1aff;
+  --accent3: #00c45e;
+  --accent4: #ffc107;
+  --accent5: #c800ff;
+  --text: #1a1a2e;
+  --muted: #6b6b7a;
+  --border: rgba(8,9,12,0.12);
+  --card: rgba(255,255,255,0.7);
+  --shadow: 0 2px 20px rgba(8,9,12,0.08);
+  --shadow-lg: 0 8px 48px rgba(8,9,12,0.14);
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body: 'Outfit', sans-serif;
+  --font-code: 'Space Mono', monospace;
+  --radius: 16px;
+  --radius-sm: 8px;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: var(--font-body);
+  background: var(--paper);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+}
+
+/* ── NOISE TEXTURE OVERLAY ── */
+body::before {
+  content:'';
+  position:fixed; inset:0; z-index:0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events:none;
+}
+
+/* ── DECORATIVE CIRCLES ── */
+.bg-deco {
+  position:fixed; z-index:0; pointer-events:none;
+  border-radius:50%;
+  filter: blur(80px);
+  opacity: 0.18;
+}
+.bg-deco-1 { width:600px; height:600px; background:var(--accent); top:-200px; right:-200px; }
+.bg-deco-2 { width:500px; height:500px; background:var(--accent2); bottom:-150px; left:-150px; }
+.bg-deco-3 { width:300px; height:300px; background:var(--accent3); top:40%; left:40%; }
+
+/* ── EVERYTHING ELSE is relative z-index:1 ── */
+.site-wrap { position:relative; z-index:1; }
+
+/* ══════════════════════════════════════
+   HEADER
+══════════════════════════════════════ */
+header {
+  padding: 0 24px;
+  background: rgba(240,237,230,0.85);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1.5px solid var(--border);
+  position: sticky; top:0; z-index:100;
+  display:flex; align-items:center; justify-content:space-between;
+  height: 64px;
+  gap: 12px;
+}
+
+.logo-wrap {
+  display:flex; align-items:center; gap:10px; flex-shrink:0;
+}
+
+.logo-mark {
+  width: 36px; height: 36px;
+  background: var(--ink);
+  border-radius: 8px;
+  display:flex; align-items:center; justify-content:center;
+  position:relative; overflow:hidden;
+  flex-shrink:0;
+}
+.logo-mark::after {
+  content:'C';
+  font-family: var(--font-display);
+  font-size: 22px;
+  color: var(--accent);
+  position:relative; z-index:1;
+}
+.logo-mark::before {
+  content:'';
+  position:absolute; inset:0;
+  background: linear-gradient(135deg, transparent 50%, rgba(255,63,31,0.2) 50%);
+}
+
+.logo-text-wrap { display:flex; flex-direction:column; line-height:1; }
+.logo-title {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  letter-spacing: 2px;
+  color: var(--ink);
+}
+.logo-sub {
+  font-size: 0.62rem;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.header-tags {
+  display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;
+}
+.htag {
+  font-size: 0.65rem; font-weight:700; letter-spacing:1.2px;
+  text-transform:uppercase; padding:3px 10px; border-radius:999px;
+  font-family: var(--font-code);
+  white-space:nowrap;
+}
+.htag-r { background:var(--accent); color:#fff; }
+.htag-b { background:var(--accent2); color:#fff; }
+.htag-g { background:var(--accent3); color:#fff; }
+
+/* ══════════════════════════════════════
+   LAYOUT
+══════════════════════════════════════ */
+.app-layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  height: calc(100vh - 64px);
+}
+
+@media(max-width:900px){
+  .app-layout { grid-template-columns:1fr; height:auto; }
+}
+
+/* ══════════════════════════════════════
+   LEFT SIDEBAR
+══════════════════════════════════════ */
+.sidebar {
+  background: rgba(232,228,219,0.6);
+  border-right: 1.5px solid var(--border);
+  display:flex; flex-direction:column;
+  overflow-y:auto; overflow-x:hidden;
+}
+.sidebar::-webkit-scrollbar { width:3px; }
+.sidebar::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+
+.sidebar-section { padding: 16px 18px; }
+.sidebar-section + .sidebar-section { border-top: 1.5px solid var(--border); }
+
+.sidebar-label {
+  font-size: 0.62rem; font-weight:700; letter-spacing:2px;
+  text-transform:uppercase; color:var(--muted);
+  margin-bottom:10px; font-family:var(--font-code);
+  display:flex; align-items:center; gap:6px;
+}
+.sidebar-label::before {
+  content:''; width:16px; height:1.5px; background:var(--muted);
+}
+
+/* Sample grid */
+.sample-list { display:flex; flex-direction:column; gap:6px; }
+.sample-card {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  cursor:pointer; transition: all 0.18s;
+  display:flex; align-items:center; gap:12px;
+  backdrop-filter:blur(8px);
+}
+.sample-card:hover {
+  border-color: var(--accent);
+  background: rgba(255,63,31,0.06);
+  transform:translateX(2px);
+}
+.sample-card.active {
+  border-color: var(--ink);
+  background: var(--ink);
+}
+.sample-card.active .sc-name { color:#fff; }
+.sample-card.active .sc-desc { color:rgba(255,255,255,0.5); }
+.sample-card.active .sc-icon { background:var(--accent); color:#fff; }
+.sc-icon {
+  width:32px; height:32px; border-radius:6px;
+  background: rgba(8,9,12,0.08);
+  display:flex; align-items:center; justify-content:center;
+  font-size:14px; flex-shrink:0;
+  transition:all 0.18s;
+}
+.sc-name { font-size:0.82rem; font-weight:600; color:var(--text); line-height:1.2; }
+.sc-desc { font-size:0.7rem; color:var(--muted); margin-top:1px; }
+
+/* Code editor */
+.editor-wrap {
+  position:relative;
+  flex:1; display:flex; flex-direction:column;
+  min-height:0;
+}
+#codeInput {
+  flex:1; min-height:180px; max-height:340px;
+  background: rgba(8,9,12,0.95);
+  border: 1.5px solid rgba(8,9,12,0.25);
+  border-radius: var(--radius-sm);
+  padding:14px;
+  color: #a8e6cf;
+  font-family: var(--font-code);
+  font-size: 0.76rem; line-height:1.8;
+  resize:none; outline:none;
+  transition:border-color 0.2s;
+}
+#codeInput:focus { border-color:var(--accent); }
+#codeInput::placeholder { color:rgba(168,230,207,0.3); }
+
+/* Line counter badge */
+.editor-meta {
+  display:flex; justify-content:space-between; align-items:center;
+  margin-top:6px; padding:0 2px;
+}
+.editor-meta span { font-size:0.65rem; color:var(--muted); font-family:var(--font-code); }
+
+/* Analyze button */
+.analyze-btn {
+  margin-top:14px;
+  padding:14px 20px;
+  background: var(--ink);
+  border:none; border-radius:var(--radius-sm);
+  color:#fff; font-family:var(--font-body);
+  font-weight:700; font-size:0.9rem; cursor:pointer;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  transition: all 0.2s;
+  position:relative; overflow:hidden;
+  width:100%;
+  letter-spacing:0.5px;
+}
+.analyze-btn::before {
+  content:'';
+  position:absolute; left:0; top:0; bottom:0; width:0;
+  background: var(--accent);
+  transition: width 0.35s cubic-bezier(0.4,0,0.2,1);
+  z-index:0;
+}
+.analyze-btn:hover::before { width:100%; }
+.analyze-btn:hover { transform:translateY(-1px); box-shadow: var(--shadow-lg); }
+.analyze-btn > * { position:relative; z-index:1; }
+.analyze-btn.loading { pointer-events:none; }
+.analyze-btn.loading::before { width:60%; animation:btnPulse 1s ease-in-out infinite; }
+@keyframes btnPulse { 0%,100%{width:20%} 50%{width:80%} }
+
+.btn-spinner {
+  width:16px; height:16px; border-radius:50%;
+  border:2px solid rgba(255,255,255,0.3);
+  border-top-color:#fff;
+  animation:spin 0.7s linear infinite;
+  display:none;
+}
+.analyze-btn.loading .btn-spinner { display:block; }
+.analyze-btn.loading .btn-text { opacity:0.7; }
+@keyframes spin { to{transform:rotate(360deg)} }
+
+/* ── Settings Panel ── */
+.settings-row { display:flex; flex-direction:column; gap:8px; }
+.setting-item {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:8px 12px;
+  background: var(--card);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius-sm);
+  backdrop-filter:blur(8px);
+}
+.setting-label { font-size:0.78rem; font-weight:500; color:var(--text); }
+.toggle {
+  width:36px; height:20px; border-radius:10px;
+  background:rgba(8,9,12,0.15); position:relative; cursor:pointer;
+  transition:background 0.2s; flex-shrink:0;
+  border:none; outline:none;
+}
+.toggle.on { background:var(--accent3); }
+.toggle::after {
+  content:''; position:absolute; width:14px; height:14px; border-radius:50%;
+  background:#fff; top:3px; left:3px; transition:left 0.2s;
+  box-shadow:0 1px 3px rgba(0,0,0,0.2);
+}
+.toggle.on::after { left:19px; }
+
+/* Stats mini strip */
+.mini-stats {
+  display:grid; grid-template-columns:repeat(3,1fr); gap:6px;
+}
+.mini-stat {
+  background: var(--card);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:10px 8px; text-align:center;
+  backdrop-filter:blur(8px);
+}
+.mini-stat-num {
+  font-family:var(--font-display);
+  font-size:1.6rem; color:var(--ink); line-height:1;
+}
+.mini-stat-label { font-size:0.58rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-top:2px; }
+
+/* ══════════════════════════════════════
+   RIGHT PANEL
+══════════════════════════════════════ */
+.main-panel {
+  display:flex; flex-direction:column;
+  overflow:hidden;
+  background: rgba(240,237,230,0.4);
+}
+
+@media(max-width:900px){
+  .main-panel { min-height:600px; }
+}
+
+/* Tab bar */
+.tabbar {
+  display:flex; align-items:stretch;
+  background: rgba(232,228,219,0.9);
+  border-bottom: 1.5px solid var(--border);
+  backdrop-filter: blur(12px);
+  overflow-x:auto;
+  padding:0 8px;
+  scrollbar-width:none;
+}
+.tabbar::-webkit-scrollbar { display:none; }
+
+.tab-btn {
+  padding:0 18px; height:52px; min-width:fit-content;
+  font-family: var(--font-body); font-size:0.78rem; font-weight:600;
+  color:var(--muted); background:none; border:none; cursor:pointer;
+  display:flex; align-items:center; gap:7px;
+  position:relative; white-space:nowrap;
+  transition: color 0.18s;
+  letter-spacing:0.3px;
+}
+.tab-btn::after {
+  content:''; position:absolute; bottom:0; left:16px; right:16px; height:2.5px;
+  border-radius:2px 2px 0 0;
+  background:var(--ink); opacity:0; transition:opacity 0.18s;
+}
+.tab-btn:hover { color:var(--ink); }
+.tab-btn.active { color:var(--ink); }
+.tab-btn.active::after { opacity:1; }
+.tab-icon { font-size:0.9rem; }
+.tab-badge {
+  width:18px; height:18px; border-radius:50%;
+  background:rgba(8,9,12,0.08); color:var(--muted);
+  font-size:0.6rem; display:flex; align-items:center; justify-content:center;
+  font-family:var(--font-code); font-weight:700;
+  transition:all 0.18s;
+}
+.tab-btn.active .tab-badge { background:var(--ink); color:#fff; }
+
+/* Content */
+.tab-content {
+  flex:1; overflow-y:auto; overflow-x:hidden;
+  padding: 24px;
+}
+.tab-content::-webkit-scrollbar { width:4px; }
+.tab-content::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+
+.view-panel { display:none; animation:viewIn 0.35s cubic-bezier(0.4,0,0.2,1); }
+.view-panel.active { display:block; }
+@keyframes viewIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+
+/* ══════════════════════════════════════
+   EMPTY STATE
+══════════════════════════════════════ */
+.empty-state {
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  min-height:400px; gap:20px; text-align:center; padding:40px;
+}
+.empty-glyph {
+  font-family:var(--font-display);
+  font-size:5rem; line-height:1; color:var(--ink); opacity:0.06;
+  letter-spacing:-2px;
+}
+.empty-title {
+  font-family:var(--font-display);
+  font-size:2rem; letter-spacing:3px; color:var(--muted);
+}
+.empty-desc { font-size:0.85rem; color:var(--muted); max-width:320px; line-height:1.7; font-weight:400; }
+.empty-shortcut {
+  display:flex; align-items:center; gap:8px;
+  padding:10px 18px; border-radius:var(--radius-sm);
+  background:var(--ink); color:#fff; font-size:0.78rem; font-weight:600;
+  letter-spacing:0.5px; cursor:pointer; border:none;
+  transition:all 0.18s;
+}
+.empty-shortcut:hover { background:var(--accent); transform:scale(1.02); }
+
+/* ══════════════════════════════════════
+   SECTION HEADERS
+══════════════════════════════════════ */
+.sec-head {
+  display:flex; align-items:baseline; gap:12px; margin-bottom:18px;
+}
+.sec-head-num {
+  font-family:var(--font-display); font-size:3rem; line-height:1;
+  color:var(--ink); opacity:0.08; letter-spacing:-2px; flex-shrink:0;
+}
+.sec-head-title {
+  font-family:var(--font-display); font-size:1.5rem; letter-spacing:2px; color:var(--ink);
+}
+.sec-head-sub { font-size:0.76rem; color:var(--muted); line-height:1.5; margin-top:2px; }
+.divider { height:1.5px; background:var(--border); margin:20px 0; }
+
+/* ══════════════════════════════════════
+   STATS CARDS
+══════════════════════════════════════ */
+.stats-row {
+  display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin-bottom:24px;
+}
+@media(max-width:600px){ .stats-row { grid-template-columns:repeat(2,1fr); } }
+
+.stat-block {
+  background: var(--card);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius);
+  padding:16px 14px;
+  display:flex; flex-direction:column; gap:4px;
+  backdrop-filter:blur(8px);
+  transition:all 0.2s;
+  position:relative; overflow:hidden;
+}
+.stat-block::after {
+  content:''; position:absolute; bottom:0; left:0; right:0; height:3px;
+}
+.stat-block:nth-child(1)::after { background:var(--accent); }
+.stat-block:nth-child(2)::after { background:var(--accent2); }
+.stat-block:nth-child(3)::after { background:var(--accent3); }
+.stat-block:nth-child(4)::after { background:var(--accent4); }
+.stat-block:hover { transform:translateY(-2px); box-shadow:var(--shadow); }
+.stat-n {
+  font-family:var(--font-display); font-size:2.2rem; line-height:1;
+  color:var(--ink); letter-spacing:-1px;
+}
+.stat-l { font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:1.5px; font-weight:600; }
+
+/* ══════════════════════════════════════
+   TOKEN CHIPS
+══════════════════════════════════════ */
+.chip-stream { display:flex; flex-wrap:wrap; gap:6px; }
+.chip {
+  padding:4px 10px; border-radius:5px;
+  font-family:var(--font-code); font-size:0.7rem; font-weight:700;
+  animation: chipPop 0.3s cubic-bezier(0.34,1.56,0.64,1) both;
+  cursor:default;
+  transition:transform 0.12s;
+}
+.chip:hover { transform:scale(1.08); }
+@keyframes chipPop { from{opacity:0;transform:scale(0.7)} to{opacity:1;transform:scale(1)} }
+
+.tok-keyword { background:#1a1aff; color:#fff; }
+.tok-type    { background:#ff3f1f; color:#fff; }
+.tok-id      { background:#fff; color:var(--ink); border:1.5px solid var(--border); }
+.tok-num     { background:#ffc107; color:var(--ink); }
+.tok-op      { background:var(--ink); color:#fff; }
+.tok-punc    { background:rgba(8,9,12,0.08); color:var(--muted); }
+.tok-str     { background:#00c45e; color:#fff; }
+.tok-func    { background:#c800ff; color:#fff; }
+
+/* ══════════════════════════════════════
+   TOKEN TABLE
+══════════════════════════════════════ */
+.token-table-wrap {
+  background: var(--card);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden; backdrop-filter:blur(8px);
+  margin-top:20px;
+}
+.token-table {
+  width:100%; border-collapse:collapse;
+  font-family:var(--font-code); font-size:0.74rem;
+}
+.token-table th {
+  background:var(--ink); color:rgba(255,255,255,0.6);
+  padding:10px 14px; text-align:left;
+  font-size:0.62rem; letter-spacing:1.5px; text-transform:uppercase; font-weight:700;
+}
+.token-table td { padding:8px 14px; border-bottom:1.5px solid var(--border); transition:background 0.12s; }
+.token-table tr:last-child td { border-bottom:none; }
+.token-table tr:hover td { background:rgba(255,63,31,0.04); }
+.token-table .td-num { color:var(--muted); }
+.token-table .td-type { color:var(--muted); font-size:0.65rem; }
+
+/* ══════════════════════════════════════
+   LEGEND
+══════════════════════════════════════ */
+.legend-strip {
+  display:flex; flex-wrap:wrap; gap:8px; margin-top:16px;
+  padding:14px 16px;
+  background:var(--card); border:1.5px solid var(--border);
+  border-radius:var(--radius-sm); backdrop-filter:blur(8px);
+}
+.leg-item { display:flex; align-items:center; gap:6px; font-size:0.72rem; color:var(--text); font-weight:500; }
+.leg-dot { width:10px; height:10px; border-radius:3px; flex-shrink:0; }
+
+/* ══════════════════════════════════════
+   INFO CARDS
+══════════════════════════════════════ */
+.info-row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:20px; }
+@media(max-width:600px){ .info-row { grid-template-columns:1fr; } }
+
+.info-block {
+  background: var(--card);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius);
+  padding:20px; backdrop-filter:blur(8px);
+  transition:all 0.2s;
+  position:relative; overflow:hidden;
+}
+.info-block::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:3px;
+}
+.info-block:nth-child(1)::before { background:var(--accent2); }
+.info-block:nth-child(2)::before { background:var(--accent); }
+.info-block:hover { transform:translateY(-2px); box-shadow:var(--shadow); }
+.info-block h3 {
+  font-family:var(--font-display); font-size:1rem; letter-spacing:1.5px;
+  color:var(--ink); margin-bottom:10px;
+}
+.info-block p { font-size:0.8rem; color:var(--muted); line-height:1.8; font-weight:400; }
+
+/* ══════════════════════════════════════
+   AST TREE
+══════════════════════════════════════ */
+.ast-wrap {
+  background: rgba(8,9,12,0.96);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius);
+  padding:20px 16px;
+  overflow-x:auto;
+}
+.ast-tree { font-family:var(--font-code); font-size:0.76rem; line-height:2; }
+.ast-node {
+  display:flex; align-items:center; gap:8px;
+  padding:2px 8px; border-radius:5px; margin:1px 0;
+  transition:background 0.12s; cursor:default;
+  animation: slideR 0.3s ease both;
+}
+@keyframes slideR { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:translateX(0)} }
+.ast-node:hover { background:rgba(255,255,255,0.04); }
+.ast-connector { color:rgba(255,255,255,0.2); user-select:none; white-space:pre; }
+.ast-tag { padding:2px 7px; border-radius:4px; font-size:0.65rem; font-weight:700; }
+.ast-program  { background:rgba(0,196,94,0.25); color:#00c45e; }
+.ast-func     { background:rgba(200,0,255,0.25); color:#d97eff; }
+.ast-decl     { background:rgba(26,26,255,0.25); color:#6b8cff; }
+.ast-stmt     { background:rgba(255,193,7,0.25); color:#ffc107; }
+.ast-expr     { background:rgba(255,63,31,0.25); color:#ff7a5c; }
+.ast-literal  { background:rgba(255,255,255,0.1); color:rgba(255,255,255,0.7); }
+.ast-id       { background:rgba(255,255,255,0.07); color:rgba(255,255,255,0.4); }
+.ast-val      { color:rgba(255,255,255,0.3); font-size:0.68rem; }
+
+/* ══════════════════════════════════════
+   GRAPH CONTAINERS
+══════════════════════════════════════ */
+.graph-wrap {
+  background: rgba(8,9,12,0.96);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius);
+  overflow:hidden; position:relative;
+}
+.graph-wrap svg { display:block; width:100%; height:auto; }
+.graph-toolbar {
+  position:absolute; top:12px; right:12px; z-index:5;
+  display:flex; gap:6px;
+}
+.graph-btn {
+  background: rgba(255,255,255,0.1);
+  border:1px solid rgba(255,255,255,0.15);
+  border-radius:6px; color:#fff; cursor:pointer;
+  width:30px; height:30px; display:flex; align-items:center; justify-content:center;
+  font-size:14px; transition:background 0.15s; backdrop-filter:blur(8px);
+}
+.graph-btn:hover { background:rgba(255,255,255,0.2); }
+
+/* ══════════════════════════════════════
+   THEORY SECTION
+══════════════════════════════════════ */
+.theory-hero {
+  background: var(--ink);
+  border-radius:var(--radius);
+  padding:28px 24px;
+  margin-bottom:20px;
+  position:relative; overflow:hidden;
+}
+.theory-hero::before {
+  content:''; position:absolute; inset:0;
+  background: linear-gradient(135deg, var(--accent) 0%, transparent 50%);
+  opacity:0.15;
+}
+.theory-hero-title {
+  font-family:var(--font-display);
+  font-size:2rem; letter-spacing:3px; color:#fff;
+  position:relative; z-index:1; line-height:1.2;
+}
+.theory-hero-sub {
+  font-size:0.82rem; color:rgba(255,255,255,0.5);
+  margin-top:8px; line-height:1.7; position:relative; z-index:1;
+  max-width:500px;
+}
+
+.theory-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+@media(max-width:700px){ .theory-grid { grid-template-columns:1fr; } }
+@media(min-width:701px) and (max-width:900px){ .theory-grid { grid-template-columns:repeat(2,1fr); } }
+
+.theory-card {
+  background: var(--card);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius);
+  padding:18px 16px;
+  backdrop-filter:blur(8px);
+  transition:all 0.2s;
+  cursor:default;
+}
+.theory-card:hover { transform:translateY(-3px); box-shadow:var(--shadow-lg); border-color:var(--ink); }
+.theory-card-icon {
+  width:36px; height:36px; border-radius:8px;
+  background:var(--ink); color:#fff;
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; margin-bottom:12px;
+}
+.theory-card h4 {
+  font-family:var(--font-display); font-size:1rem; letter-spacing:1.5px;
+  color:var(--ink); margin-bottom:8px; line-height:1.2;
+}
+.theory-card p { font-size:0.76rem; color:var(--muted); line-height:1.75; }
+.theory-tag {
+  display:inline-block; margin-top:10px;
+  padding:3px 8px; border-radius:4px; font-size:0.6rem; font-weight:700;
+  letter-spacing:1px; text-transform:uppercase; font-family:var(--font-code);
+}
+
+/* ══════════════════════════════════════
+   COPY / EXPORT PANEL (new feature)
+══════════════════════════════════════ */
+.export-bar {
+  display:flex; gap:8px; flex-wrap:wrap; margin-bottom:20px;
+}
+.exp-btn {
+  padding:8px 16px; border-radius:var(--radius-sm);
+  font-family:var(--font-body); font-size:0.75rem; font-weight:600;
+  cursor:pointer; transition:all 0.18s;
+  display:flex; align-items:center; gap:6px;
+  letter-spacing:0.3px;
+}
+.exp-btn-outline {
+  background:transparent; border:1.5px solid var(--border); color:var(--text);
+}
+.exp-btn-outline:hover { border-color:var(--ink); background:rgba(8,9,12,0.06); }
+.exp-btn-solid {
+  background:var(--ink); border:1.5px solid var(--ink); color:#fff;
+}
+.exp-btn-solid:hover { background:var(--accent); border-color:var(--accent); }
+.exp-btn-green {
+  background:var(--accent3); border:1.5px solid var(--accent3); color:#fff;
+}
+.exp-btn-green:hover { opacity:0.85; }
+
+/* ══════════════════════════════════════
+   SEARCH / FILTER (new feature)
+══════════════════════════════════════ */
+.search-bar {
+  display:flex; gap:8px; margin-bottom:16px;
+}
+.search-input {
+  flex:1; padding:9px 14px;
+  background: var(--card); border:1.5px solid var(--border);
+  border-radius:var(--radius-sm); font-family:var(--font-code);
+  font-size:0.78rem; color:var(--text); outline:none;
+  backdrop-filter:blur(8px); transition:border-color 0.18s;
+}
+.search-input:focus { border-color:var(--accent); }
+.search-input::placeholder { color:var(--muted); }
+
+.filter-chips { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px; }
+.filter-chip {
+  padding:4px 12px; border-radius:999px;
+  font-size:0.68rem; font-weight:700; font-family:var(--font-code);
+  cursor:pointer; border:1.5px solid var(--border);
+  transition:all 0.15s; background:var(--card);
+  letter-spacing:0.5px;
+}
+.filter-chip.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+.filter-chip:hover:not(.on) { border-color:var(--ink); }
+
+/* ══════════════════════════════════════
+   TOAST
+══════════════════════════════════════ */
+.toast-container { position:fixed; bottom:24px; right:24px; z-index:999; display:flex; flex-direction:column; gap:8px; }
+.toast {
+  background:var(--ink); color:#fff;
+  padding:12px 18px; border-radius:var(--radius-sm);
+  font-size:0.8rem; font-weight:600;
+  display:flex; align-items:center; gap:8px;
+  animation:toastIn 0.3s cubic-bezier(0.34,1.56,0.64,1);
+  box-shadow:var(--shadow-lg);
+}
+@keyframes toastIn { from{opacity:0;transform:translateX(20px)} to{opacity:1;transform:translateX(0)} }
+.toast.success { border-left:3px solid var(--accent3); }
+.toast.error { border-left:3px solid var(--accent); }
+
+/* ══════════════════════════════════════
+   PROGRESS BAR
+══════════════════════════════════════ */
+.progress-bar-wrap {
+  height:3px; background:var(--border);
+  position:fixed; top:64px; left:0; right:0; z-index:99;
+}
+.progress-bar {
+  height:100%; background:var(--accent);
+  width:0; transition:width 0.4s ease;
+}
+
+/* ══════════════════════════════════════
+   COMPLEXITY METER (new feature)
+══════════════════════════════════════ */
+.complexity-section { margin-bottom:20px; }
+.complexity-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+@media(max-width:600px){ .complexity-grid { grid-template-columns:1fr; } }
+.complexity-card {
+  background:var(--card); border:1.5px solid var(--border);
+  border-radius:var(--radius); padding:16px;
+  backdrop-filter:blur(8px);
+}
+.complexity-card h4 { font-family:var(--font-display); font-size:0.85rem; letter-spacing:1px; color:var(--ink); margin-bottom:10px; }
+.meter {
+  height:8px; background:rgba(8,9,12,0.1);
+  border-radius:4px; overflow:hidden;
+}
+.meter-fill {
+  height:100%; border-radius:4px;
+  transition:width 0.8s cubic-bezier(0.4,0,0.2,1);
+  position:relative;
+}
+.meter-fill::after {
+  content:''; position:absolute; inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.3),transparent);
+  animation:shimmer 2s infinite;
+}
+@keyframes shimmer { from{transform:translateX(-100%)} to{transform:translateX(100%)} }
+.meter-low    { background:var(--accent3); }
+.meter-mid    { background:var(--accent4); }
+.meter-high   { background:var(--accent); }
+.meter-val { font-family:var(--font-display); font-size:1.4rem; color:var(--ink); margin-top:4px; }
+.meter-desc { font-size:0.65rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
+
+/* ══════════════════════════════════════
+   MOBILE BOTTOM BAR
+══════════════════════════════════════ */
+@media(max-width:900px){
+  .mobile-tab-bar {
+    position:fixed; bottom:0; left:0; right:0; z-index:90;
+    background:rgba(240,237,230,0.95);
+    border-top:1.5px solid var(--border);
+    backdrop-filter:blur(20px);
+    display:flex; justify-content:space-around; align-items:center;
+    padding:6px 0 10px;
+    -webkit-backdrop-filter:blur(20px);
+  }
+  .mob-tab-btn {
+    display:flex; flex-direction:column; align-items:center; gap:3px;
+    background:none; border:none; cursor:pointer;
+    padding:4px 10px; border-radius:8px;
+    transition:background 0.15s;
+    color:var(--muted); font-size:0.55rem; font-weight:700;
+    text-transform:uppercase; letter-spacing:0.5px;
+  }
+  .mob-tab-btn .mob-icon { font-size:1.2rem; }
+  .mob-tab-btn.active { color:var(--accent); }
+  .app-layout { padding-bottom:68px; }
+  .tab-content { padding: 16px; }
+  .theory-grid { grid-template-columns:1fr; }
+}
+@media(min-width:901px){
+  .mobile-tab-bar { display:none; }
+}
+
+/* ══════════════════════════════════════
+   NODE STYLES FOR SVG
+══════════════════════════════════════ */
+</style>
+</head>
+<body>
+
+<!-- BG DECO -->
+<div class="bg-deco bg-deco-1"></div>
+<div class="bg-deco bg-deco-2"></div>
+<div class="bg-deco bg-deco-3"></div>
+
+<div class="progress-bar-wrap"><div class="progress-bar" id="progressBar"></div></div>
+<div class="toast-container" id="toastContainer"></div>
+
+<div class="site-wrap">
+
+<!-- HEADER -->
+<header>
+  <div class="logo-wrap">
+    <div class="logo-mark"></div>
+    <div class="logo-text-wrap">
+      <div class="logo-title">C ANALYZER</div>
+      <div class="logo-sub">AI Code Intelligence · v3.0</div>
+    </div>
+  </div>
+  <div class="header-tags">
+    <span class="htag htag-r">LEXER</span>
+    <span class="htag htag-b">AST</span>
+    <span class="htag htag-g">CFG · DFG · CPG</span>
+  </div>
+</header>
+
+<!-- APP LAYOUT -->
+<div class="app-layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <!-- Samples -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Samples</div>
+      <div class="sample-list" id="sampleList"></div>
+    </div>
+
+    <!-- Editor -->
+    <div class="sidebar-section" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+      <div class="sidebar-label">Your C Code</div>
+      <div class="editor-wrap">
+        <textarea id="codeInput" spellcheck="false" placeholder="// Paste your C program here..."></textarea>
+        <div class="editor-meta">
+          <span id="lineCount">0 lines</span>
+          <span id="charCount">0 chars</span>
+        </div>
+        <button class="analyze-btn" id="analyzeBtn" onclick="runAnalysis()">
+          <div class="btn-spinner" id="btnSpinner"></div>
+          <span class="btn-text" id="btnText">⚡ Analyze Program</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Settings -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Options</div>
+      <div class="settings-row">
+        <div class="setting-item">
+          <span class="setting-label">Show Token Table</span>
+          <button class="toggle on" id="toggleTable" onclick="toggleSetting('table',this)"></button>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Animate Nodes</span>
+          <button class="toggle on" id="toggleAnim" onclick="toggleSetting('anim',this)"></button>
+        </div>
+        <div class="setting-item">
+          <span class="setting-label">Dark Graph BG</span>
+          <button class="toggle on" id="toggleDark" onclick="toggleSetting('dark',this)"></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Mini stats -->
+    <div class="sidebar-section">
+      <div class="sidebar-label">Last Analysis</div>
+      <div class="mini-stats">
+        <div class="mini-stat"><div class="mini-stat-num" id="ms-tokens">—</div><div class="mini-stat-label">Tokens</div></div>
+        <div class="mini-stat"><div class="mini-stat-num" id="ms-lines">—</div><div class="mini-stat-label">Lines</div></div>
+        <div class="mini-stat"><div class="mini-stat-num" id="ms-funcs">—</div><div class="mini-stat-label">Funcs</div></div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- MAIN PANEL -->
+  <main class="main-panel">
+    <div class="tabbar" id="tabbar">
+      <button class="tab-btn active" onclick="switchTab(0,this)"><span class="tab-icon">🔤</span>Tokens<span class="tab-badge">1</span></button>
+      <button class="tab-btn" onclick="switchTab(1,this)"><span class="tab-icon">🌳</span>AST<span class="tab-badge">2</span></button>
+      <button class="tab-btn" onclick="switchTab(2,this)"><span class="tab-icon">🔀</span>CFG<span class="tab-badge">3</span></button>
+      <button class="tab-btn" onclick="switchTab(3,this)"><span class="tab-icon">📡</span>DFG<span class="tab-badge">4</span></button>
+      <button class="tab-btn" onclick="switchTab(4,this)"><span class="tab-icon">🔗</span>CPG<span class="tab-badge">5</span></button>
+      <button class="tab-btn" onclick="switchTab(5,this)"><span class="tab-icon">📚</span>Theory<span class="tab-badge">6</span></button>
+    </div>
+
+    <div class="tab-content">
+      <div class="view-panel active" id="view-0"></div>
+      <div class="view-panel" id="view-1"></div>
+      <div class="view-panel" id="view-2"></div>
+      <div class="view-panel" id="view-3"></div>
+      <div class="view-panel" id="view-4"></div>
+      <div class="view-panel" id="view-5"></div>
+    </div>
+  </main>
+</div>
+
+<!-- MOBILE BOTTOM BAR -->
+<nav class="mobile-tab-bar" id="mobileTabBar">
+  <button class="mob-tab-btn active" onclick="switchTab(0,null,this)"><span class="mob-icon">🔤</span>Tokens</button>
+  <button class="mob-tab-btn" onclick="switchTab(1,null,this)"><span class="mob-icon">🌳</span>AST</button>
+  <button class="mob-tab-btn" onclick="switchTab(2,null,this)"><span class="mob-icon">🔀</span>CFG</button>
+  <button class="mob-tab-btn" onclick="switchTab(3,null,this)"><span class="mob-icon">📡</span>DFG</button>
+  <button class="mob-tab-btn" onclick="switchTab(4,null,this)"><span class="mob-icon">🔗</span>CPG</button>
+  <button class="mob-tab-btn" onclick="switchTab(5,null,this)"><span class="mob-icon">📚</span>Theory</button>
+</nav>
+
+</div><!-- /site-wrap -->
+
+<script>
+/* ══════════════════════════════════════════════
+   SETTINGS
+══════════════════════════════════════════════ */
+const settings = { table:true, anim:true, dark:true };
+
+function toggleSetting(key, btn) {
+  settings[key] = !settings[key];
+  btn.classList.toggle('on', settings[key]);
+  toast(key.charAt(0).toUpperCase()+key.slice(1) + (settings[key]?' enabled':' disabled'));
+}
+
+/* ══════════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════════ */
+function toast(msg, type='success') {
+  const tc = document.getElementById('toastContainer');
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.innerHTML = `<span>${type==='success'?'✓':'✕'}</span> ${msg}`;
+  tc.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transform='translateX(20px)'; el.style.transition='all 0.3s'; setTimeout(()=>el.remove(),300); }, 2200);
+}
+
+/* ══════════════════════════════════════════════
+   EDITOR META
+══════════════════════════════════════════════ */
+function updateEditorMeta() {
+  const code = document.getElementById('codeInput').value;
+  const lines = code.split('\n').length;
+  const chars = code.length;
+  document.getElementById('lineCount').textContent = lines + ' lines';
+  document.getElementById('charCount').textContent = chars + ' chars';
+}
+document.getElementById('codeInput').addEventListener('input', updateEditorMeta);
+
+/* ══════════════════════════════════════════════
+   SAMPLE PROGRAMS
+══════════════════════════════════════════════ */
+const SAMPLES = [
+  { name:'fibonacci.c', icon:'🔢', desc:'Recursive Fibonacci',
+    code:`#include <stdio.h>\n\nint fibonacci(int n) {\n    if (n <= 1)\n        return n;\n    return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\nint main() {\n    int i;\n    for (i = 0; i < 10; i++) {\n        printf("%d ", fibonacci(i));\n    }\n    return 0;\n}` },
+  { name:'bubble_sort.c', icon:'🫧', desc:'Bubble Sort Algorithm',
+    code:`#include <stdio.h>\n\nvoid bubbleSort(int arr[], int n) {\n    int i, j, temp;\n    for (i = 0; i < n - 1; i++) {\n        for (j = 0; j < n - i - 1; j++) {\n            if (arr[j] > arr[j + 1]) {\n                temp = arr[j];\n                arr[j] = arr[j + 1];\n                arr[j + 1] = temp;\n            }\n        }\n    }\n}\n\nint main() {\n    int arr[] = {64, 34, 25, 12, 22, 11, 90};\n    int n = 7;\n    bubbleSort(arr, n);\n    return 0;\n}` },
+  { name:'factorial.c', icon:'❗', desc:'Factorial with Loop',
+    code:`#include <stdio.h>\n\nint factorial(int n) {\n    int result = 1;\n    int i;\n    for (i = 1; i <= n; i++) {\n        result = result * i;\n    }\n    return result;\n}\n\nint main() {\n    int num = 5;\n    int fact = factorial(num);\n    printf("Factorial of %d is %d\\n", num, fact);\n    return 0;\n}` },
+  { name:'linear_search.c', icon:'🔍', desc:'Linear Search',
+    code:`#include <stdio.h>\n\nint search(int arr[], int n, int x) {\n    int i;\n    for (i = 0; i < n; i++) {\n        if (arr[i] == x)\n            return i;\n    }\n    return -1;\n}\n\nint main() {\n    int arr[] = {2, 3, 4, 10, 40};\n    int x = 10;\n    int n = 5;\n    int result = search(arr, n, x);\n    printf("Element found at index: %d\\n", result);\n    return 0;\n}` }
+];
+
+function initSamples() {
+  const list = document.getElementById('sampleList');
+  list.innerHTML = SAMPLES.map((s,i)=>`
+    <div class="sample-card${i===0?' active':''}" onclick="selectSample(${i},this)">
+      <div class="sc-icon">${s.icon}</div>
+      <div><div class="sc-name">${s.name}</div><div class="sc-desc">${s.desc}</div></div>
+    </div>`).join('');
+  document.getElementById('codeInput').value = SAMPLES[0].code;
+  updateEditorMeta();
+}
+
+function selectSample(idx, el) {
+  document.querySelectorAll('.sample-card').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('codeInput').value = SAMPLES[idx].code;
+  updateEditorMeta();
+  resetViews();
+}
+
+/* ══════════════════════════════════════════════
+   TOKENIZER (unchanged logic, same as original)
+══════════════════════════════════════════════ */
+const KEYWORDS = new Set(['int','char','float','double','void','if','else','for','while','do','return','include','printf','scanf','break','continue','switch','case','default','struct','typedef','const','static','extern','sizeof','long','short','unsigned','signed','NULL']);
+const TYPES    = new Set(['int','char','float','double','void','long','short','unsigned','signed']);
+const OPERATORS = new Set(['+','-','*','/','%','=','==','!=','<','>','<=','>=','&&','||','!','&','|','^','~','<<','>>','++','--','+=','-=','*=','/=','%=']);
+const STD_FUNCS = new Set(['printf','scanf','malloc','free','strlen','strcpy','strcmp','memset','memcpy']);
+
+function tokenize(code) {
+  const tokens=[]; let i=0;
+  while(i<code.length){
+    if(/\s/.test(code[i])){i++;continue;}
+    if(code[i]==='/'&&code[i+1]==='/'){let s=i;while(i<code.length&&code[i]!=='\n')i++;tokens.push({type:'COMMENT',value:code.slice(s,i)});continue;}
+    if(code[i]==='/'&&code[i+1]==='*'){let s=i;i+=2;while(i<code.length&&!(code[i]==='*'&&code[i+1]==='/'))i++;i+=2;tokens.push({type:'COMMENT',value:code.slice(s,i)});continue;}
+    if(code[i]==='#'){let s=i;while(i<code.length&&code[i]!=='\n')i++;tokens.push({type:'PREPROCESSOR',value:code.slice(s,i)});continue;}
+    if(code[i]==='"'){let s=i;i++;while(i<code.length&&code[i]!=='"'){if(code[i]==='\\')i++;i++;}i++;tokens.push({type:'STRING',value:code.slice(s,i)});continue;}
+    if(code[i]==="'"){let s=i;i++;while(i<code.length&&code[i]!=="'"){if(code[i]==='\\')i++;i++;}i++;tokens.push({type:'CHAR_LITERAL',value:code.slice(s,i)});continue;}
+    if(/[0-9]/.test(code[i])||(code[i]==='.'&&/[0-9]/.test(code[i+1]))){let s=i;while(i<code.length&&/[0-9.xXa-fA-F]/.test(code[i]))i++;tokens.push({type:'NUMBER',value:code.slice(s,i)});continue;}
+    if(/[a-zA-Z_]/.test(code[i])){let s=i;while(i<code.length&&/[a-zA-Z0-9_]/.test(code[i]))i++;const val=code.slice(s,i);let type='IDENTIFIER';if(TYPES.has(val))type='TYPE';else if(KEYWORDS.has(val))type='KEYWORD';if(STD_FUNCS.has(val))type='FUNCTION';let j=i;while(j<code.length&&code[j]===' ')j++;if(code[j]==='('&&type==='IDENTIFIER')type='FUNCTION';tokens.push({type,value:val});continue;}
+    const twoChar=code.slice(i,i+2);
+    if(OPERATORS.has(twoChar)){tokens.push({type:'OPERATOR',value:twoChar});i+=2;continue;}
+    const ch=code[i];
+    if(OPERATORS.has(ch)){tokens.push({type:'OPERATOR',value:ch});i++;continue;}
+    if('{}[]();,'.includes(ch)){tokens.push({type:'PUNCTUATION',value:ch});i++;continue;}
+    i++;
+  }
+  return tokens.filter(t=>t.type!=='COMMENT');
+}
+
+const TOKEN_CLASS={KEYWORD:'tok-keyword',TYPE:'tok-type',IDENTIFIER:'tok-id',NUMBER:'tok-num',OPERATOR:'tok-op',PUNCTUATION:'tok-punc',STRING:'tok-str',FUNCTION:'tok-func',PREPROCESSOR:'tok-keyword',CHAR_LITERAL:'tok-num'};
+
+/* ══════════════════════════════════════════════
+   AST BUILDER (same logic as original)
+══════════════════════════════════════════════ */
+function buildAST(code){
+  const lines=code.split('\n').map(l=>l.trim()).filter(l=>l);
+  const ast={type:'Program',children:[]};
+  let i=0;
+  while(i<lines.length){
+    const line=lines[i];
+    if(line.startsWith('#include')){ast.children.push({type:'Include',value:line,children:[]});}
+    else if(/^(int|void|char|float|double)\s+\w+\s*\(/.test(line)){
+      const fname=line.match(/\w+(?=\s*\()/);
+      const func={type:'FunctionDecl',value:fname?fname[0]:'fn',children:[]};
+      let depth=0;
+      while(i<lines.length){
+        const l=lines[i];
+        if(l.includes('{'))depth++;
+        if(l.includes('}')){depth--;if(depth===0){i++;break;}}
+        if(depth>0){const child=parseStmt(l.replace('{','').replace('}','').trim());if(child)func.children.push(child);}
+        i++;
+      }
+      ast.children.push(func);continue;
+    }
+    i++;
+  }
+  return ast;
+}
+
+function parseStmt(line){
+  if(!line||line==='{'||line==='}')return null;
+  if(/^if\s*\(/.test(line)){const cond=line.match(/\((.+)\)/);return{type:'IfStmt',value:cond?cond[1]:'',children:[{type:'Condition',value:cond?cond[1]:'',children:[]},{type:'ThenBranch',value:'...',children:[]}]};}
+  if(/^for\s*\(/.test(line)){return{type:'ForStmt',value:'',children:[{type:'Init',value:'',children:[]},{type:'Condition',value:'',children:[]},{type:'Update',value:'',children:[]},{type:'Body',value:'',children:[]}]};}
+  if(/^while\s*\(/.test(line)){return{type:'WhileStmt',value:'',children:[{type:'Condition',value:'',children:[]},{type:'Body',value:'',children:[]}]};}
+  if(/^return/.test(line)){const val=line.replace(/^return\s*/,'').replace(';','').trim();return{type:'ReturnStmt',value:val,children:[{type:'Expression',value:val,children:[]}]};}
+  if(/^(int|char|float|double|void)\s/.test(line)){const m=line.match(/^(\w+)\s+(\w+)\s*(?:=\s*(.+))?;/);if(m){const node={type:'VarDecl',value:`${m[1]} ${m[2]}`,children:[{type:'TypeSpec',value:m[1],children:[]},{type:'Identifier',value:m[2],children:[]}]};if(m[3])node.children.push({type:'Initializer',value:m[3].replace(';',''),children:[]});return node;}}
+  if(/\w+\s*\(/.test(line)){const fname=line.match(/(\w+)\s*\(/);const args=line.match(/\((.+)\)/);return{type:'CallExpr',value:fname?fname[1]:'',children:[{type:'FunctionRef',value:fname?fname[1]:'',children:[]},{type:'Arguments',value:args?args[1]:'',children:[]}]};}
+  if(/=/.test(line)&&!/==/.test(line)){const parts=line.split('=');return{type:'Assignment',value:'=',children:[{type:'LHS',value:parts[0].trim(),children:[]},{type:'RHS',value:(parts[1]||'').replace(';','').trim(),children:[]}]};}
+  return{type:'ExprStmt',value:line.replace(';','').trim(),children:[]};
+}
+
+/* ══════════════════════════════════════════════
+   CFG / DFG / CPG (same logic as original)
+══════════════════════════════════════════════ */
+function buildCFGNodes(code){
+  const nodes=[],edges=[];
+  const lines=code.split('\n').map(l=>l.trim()).filter(l=>l&&!l.startsWith('#')&&l!=='{'&&l!=='}');
+  nodes.push({id:0,label:'ENTRY',type:'entry'});
+  let idx=1,prev=0;
+  for(let i=0;i<lines.length;i++){
+    const line=lines[i];
+    if(/^(int|void|char|float|double)\s+\w+\s*\(/.test(line)){const fname=line.match(/\w+(?=\s*\()/);nodes.push({id:idx,label:`Function: ${fname?fname[0]:'fn'}`,type:'func'});edges.push({from:prev,to:idx,label:'entry'});prev=idx++;continue;}
+    if(/^if\s*\(/.test(line)){const cond=line.match(/\((.+)\)/);nodes.push({id:idx,label:`IF: ${cond?cond[1].substring(0,20):''}`,type:'decision'});edges.push({from:prev,to:idx,label:''});const ifNode=idx;idx++;nodes.push({id:idx,label:'True Branch',type:'block'});edges.push({from:ifNode,to:idx,label:'true'});const trueBranch=idx;idx++;nodes.push({id:idx,label:'False Branch',type:'block'});edges.push({from:ifNode,to:idx,label:'false'});const falseBranch=idx;idx++;nodes.push({id:idx,label:'Merge',type:'merge'});edges.push({from:trueBranch,to:idx,label:''});edges.push({from:falseBranch,to:idx,label:''});prev=idx++;continue;}
+    if(/^for\s*\(/.test(line)){nodes.push({id:idx,label:'Loop Init',type:'block'});edges.push({from:prev,to:idx,label:''});prev=idx++;nodes.push({id:idx,label:'Loop Condition',type:'decision'});edges.push({from:prev,to:idx,label:''});const condNode=idx;idx++;nodes.push({id:idx,label:'Loop Body',type:'block'});edges.push({from:condNode,to:idx,label:'true'});prev=idx++;continue;}
+    if(/^while\s*\(/.test(line)){const cond=line.match(/\((.+)\)/);nodes.push({id:idx,label:`While: ${cond?cond[1].substring(0,15):''}`,type:'decision'});edges.push({from:prev,to:idx,label:''});const whileNode=idx;idx++;nodes.push({id:idx,label:'While Body',type:'block'});edges.push({from:whileNode,to:idx,label:'true'});prev=idx++;edges.push({from:prev-1,to:whileNode,label:'loop'});continue;}
+    if(/^return/.test(line)){const val=line.replace(/^return\s*/,'').replace(';','').trim();nodes.push({id:idx,label:`return ${val.substring(0,15)}`,type:'return'});edges.push({from:prev,to:idx,label:''});prev=idx++;continue;}
+    if(line.trim()===''||line==='}')continue;
+    const label=line.replace(';','').substring(0,25);nodes.push({id:idx,label:label,type:'block'});edges.push({from:prev,to:idx,label:''});prev=idx++;
+  }
+  nodes.push({id:idx,label:'EXIT',type:'exit'});edges.push({from:prev,to:idx,label:''});
+  return{nodes,edges};
+}
+
+function buildDFGNodes(code){
+  const nodes=[],edges=[],varDefs={};let idx=0;
+  const lines=code.split('\n').map(l=>l.trim()).filter(l=>l&&!l.startsWith('#'));
+  for(const line of lines){
+    const decl=line.match(/^(?:int|char|float|double)\s+(\w+)\s*(?:=\s*(.+))?;/);
+    if(decl){const vname=decl[1];const init=decl[2];nodes.push({id:idx,label:`Decl: ${vname}`,type:'decl'});if(init){const used=init.match(/[a-zA-Z_]\w*/g)||[];used.filter(u=>varDefs[u]!==undefined).forEach(u=>{edges.push({from:varDefs[u],to:idx,label:u});});}varDefs[vname]=idx++;continue;}
+    const asgn=line.match(/^(\w+)\s*(?:\[.+\])?\s*=\s*(.+);/);
+    if(asgn&&!line.includes('==')){const lhs=asgn[1];const rhs=asgn[2];nodes.push({id:idx,label:`${lhs} = ${rhs.substring(0,15)}`,type:'assign'});const used=rhs.match(/[a-zA-Z_]\w*/g)||[];used.filter(u=>varDefs[u]!==undefined).forEach(u=>{edges.push({from:varDefs[u],to:idx,label:u});});varDefs[lhs]=idx++;continue;}
+    const call=line.match(/^(\w+)\s*\((.+)\)/);
+    if(call&&!line.startsWith('if')&&!line.startsWith('for')&&!line.startsWith('while')){nodes.push({id:idx,label:`call: ${call[1]}()`,type:'call'});const args=call[2].match(/[a-zA-Z_]\w*/g)||[];args.filter(a=>varDefs[a]!==undefined).forEach(a=>{edges.push({from:varDefs[a],to:idx,label:a});});idx++;}
+  }
+  return{nodes,edges};
+}
+
+function buildCPGNodes(code){
+  const cfgData=buildCFGNodes(code);const dfgData=buildDFGNodes(code);
+  const nodes=[{id:'ast_root',label:'AST Root',type:'ast'},...cfgData.nodes.slice(0,5).map(n=>({...n,id:'cfg_'+n.id,type:'cfg_'+n.type})),...dfgData.nodes.slice(0,4).map(n=>({...n,id:'dfg_'+n.id,type:'dfg_'+n.type}))];
+  const edges=[...cfgData.edges.slice(0,4).map(e=>({...e,from:'cfg_'+e.from,to:'cfg_'+e.to,kind:'control'})),...dfgData.edges.slice(0,3).map(e=>({...e,from:'dfg_'+e.from,to:'dfg_'+e.to,kind:'data'})),{from:'ast_root',to:'cfg_0',kind:'ast',label:'AST→CFG'},{from:'ast_root',to:'dfg_0',kind:'ast',label:'AST→DFG'}];
+  return{nodes,edges};
+}
+
+/* ══════════════════════════════════════════════
+   GRAPH RENDERER (same layout logic as original)
+══════════════════════════════════════════════ */
+function layoutGraph(nodes,edges){
+  if(!nodes.length)return{nodes,edges};
+  const adj={};nodes.forEach(n=>{adj[n.id]=[];});
+  edges.forEach(e=>{if(adj[e.from])adj[e.from].push(e.to);});
+  const layers=[],visited=new Set();
+  const q=[nodes[0].id];visited.add(nodes[0].id);layers.push([nodes[0].id]);
+  while(q.length){const cur=q.shift();const next=(adj[cur]||[]).filter(id=>!visited.has(id));if(next.length){layers.push(next);next.forEach(id=>{visited.add(id);q.push(id);});}}
+  const unvisited=nodes.filter(n=>!visited.has(n.id));if(unvisited.length)layers.push(unvisited.map(n=>n.id));
+  const W=700,layerH=90,nodeW=140,nodeH=40,posMap={};
+  layers.forEach((layer,li)=>{const y=60+li*layerH;const totalW=layer.length*nodeW+(layer.length-1)*20;const startX=(W-totalW)/2;layer.forEach((id,ni)=>{posMap[id]={x:startX+ni*(nodeW+20)+nodeW/2,y};});});
+  return{nodes:nodes.map(n=>({...n,...(posMap[n.id]||{x:350,y:60})})),edges};
+}
+
+// Node color palettes for light-paper graph (using dark fills for dark bg)
+const NODE_STYLES={
+  entry:   {fill:'#0f2a1e',stroke:'#00c45e',text:'#00c45e'},
+  exit:    {fill:'#1a0f0f',stroke:'#ff3f1f',text:'#ff7a5c'},
+  func:    {fill:'#1a0d2e',stroke:'#c800ff',text:'#d97eff'},
+  decision:{fill:'#0d1f2e',stroke:'#1a1aff',text:'#6b8cff'},
+  block:   {fill:'#111827',stroke:'#374151',text:'#9ca3af'},
+  merge:   {fill:'#0f1e0f',stroke:'#059669',text:'#34d399'},
+  return:  {fill:'#1a1a0d',stroke:'#ffc107',text:'#fbbf24'},
+  decl:    {fill:'#0c1120',stroke:'#0ea5e9',text:'#7dd3fc'},
+  assign:  {fill:'#0c1120',stroke:'#8b5cf6',text:'#c4b5fd'},
+  call:    {fill:'#0c1120',stroke:'#10b981',text:'#34d399'},
+  ast:     {fill:'#1a0d2e',stroke:'#c800ff',text:'#d97eff'},
+  default: {fill:'#111827',stroke:'#374151',text:'#9ca3af'},
+};
+function getStyle(type=''){const base=type.replace(/cfg_|dfg_/,'');return NODE_STYLES[base]||NODE_STYLES.default;}
+
+function renderGraphSVG(nodes,edges,title,edgeColor='#60a5fa'){
+  const{nodes:ln,edges:le}=layoutGraph(nodes,edges);
+  const H=Math.max(60+Math.ceil(nodes.length/3)*90+60,280);
+  const W=700;
+  const markerId='arr_'+Math.random().toString(36).substr(2,6);
+  const defs=`<defs>
+    <marker id="${markerId}" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="${edgeColor}" opacity=".8"/>
+    </marker>
+    <filter id="glow${markerId}"><feGaussianBlur stdDeviation="2" result="cb"/><feMerge><feMergeNode in="cb"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>`;
+  const edgeSVG=le.map(e=>{
+    const src=ln.find(n=>n.id===e.from);const tgt=ln.find(n=>n.id===e.to);
+    if(!src||!tgt)return'';
+    const dx=tgt.x-src.x,dy=tgt.y-src.y,len=Math.sqrt(dx*dx+dy*dy)||1;
+    const nx=dx/len*22,ny=dy/len*22;
+    const x1=src.x+nx,y1=src.y+ny,x2=tgt.x-nx,y2=tgt.y-ny;
+    return`<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${edgeColor}" stroke-width="1.5" opacity=".65" marker-end="url(#${markerId})"/>
+    ${e.label?`<text x="${(x1+x2)/2}" y="${(y1+y2)/2-6}" text-anchor="middle" fill="${edgeColor}" font-size="9" font-family="Space Mono" opacity=".8">${e.label}</text>`:''}`;
+  }).join('');
+  const nodeSVG=ln.map(n=>{
+    const s=getStyle(n.type);const label=(n.label||'').substring(0,18);
+    return`<g transform="translate(${n.x},${n.y})">
+      <rect x="-65" y="-20" width="130" height="40" rx="8" fill="${s.fill}" stroke="${s.stroke}" stroke-width="1.5" filter="url(#glow${markerId})"/>
+      <text text-anchor="middle" dy="5" fill="${s.text}" font-size="11" font-family="Space Mono" font-weight="700">${label}</text>
+    </g>`;
+  }).join('');
+  return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;min-height:${Math.max(H,240)}px">
+    ${defs}
+    <text x="14" y="22" fill="rgba(255,255,255,0.2)" font-size="10" font-family="Space Mono">${title}</text>
+    ${edgeSVG}${nodeSVG}
+  </svg>`;
+}
+
+/* ══════════════════════════════════════════════
+   AST RENDERER
+══════════════════════════════════════════════ */
+const AST_TAG_CLASS={Program:'ast-program',Include:'ast-func',FunctionDecl:'ast-func',VarDecl:'ast-decl',IfStmt:'ast-stmt',ForStmt:'ast-stmt',WhileStmt:'ast-stmt',ReturnStmt:'ast-stmt',Assignment:'ast-expr',CallExpr:'ast-func',ExprStmt:'ast-expr',Expression:'ast-expr',Condition:'ast-stmt',Identifier:'ast-id',TypeSpec:'ast-decl',Initializer:'ast-literal',Arguments:'ast-id',FunctionRef:'ast-func',LHS:'ast-id',RHS:'ast-expr',ThenBranch:'ast-stmt',Body:'ast-stmt',Init:'ast-stmt',Update:'ast-stmt'};
+
+function renderASTNode(node,depth=0,last=true,prefix=''){
+  const indent=depth===0?'':(prefix+(last?'└─ ':'├─ '));
+  const childPrefix=depth===0?'':(prefix+(last?'   ':'│  '));
+  const cls=AST_TAG_CLASS[node.type]||'ast-id';
+  const delay=depth*40;
+  let html=`<div class="ast-node" style="animation-delay:${delay}ms">
+    <span class="ast-connector" style="white-space:pre;font-size:.76rem">${indent}</span>
+    <span class="ast-tag ${cls}">${node.type}</span>
+    ${node.value?`<span class="ast-val">${String(node.value).substring(0,30)}</span>`:''}
+  </div>`;
+  if(node.children&&node.children.length){node.children.forEach((child,i)=>{html+=renderASTNode(child,depth+1,i===node.children.length-1,childPrefix);});}
+  return html;
+}
+
+/* ══════════════════════════════════════════════
+   COMPLEXITY ANALYSIS (new feature)
+══════════════════════════════════════════════ */
+function analyzeComplexity(code, tokens) {
+  const lines = code.split('\n').filter(l=>l.trim()).length;
+  const loops = (code.match(/\b(for|while|do)\b/g)||[]).length;
+  const branches = (code.match(/\bif\b/g)||[]).length;
+  const funcs = (code.match(/\b(int|void|char|float|double)\s+\w+\s*\(/g)||[]).length;
+  const cyclo = 1 + loops + branches;
+  const cycloPct = Math.min(cyclo*10, 100);
+  const linesPct = Math.min(lines*2, 100);
+  const funcPct = Math.min(funcs*25, 100);
+  const cycloCls = cyclo<=5?'meter-low':cyclo<=10?'meter-mid':'meter-high';
+  const linesCls = lines<=30?'meter-low':lines<=60?'meter-mid':'meter-high';
+  const funcCls  = funcs<=2?'meter-low':funcs<=4?'meter-mid':'meter-high';
+  return `<div class="complexity-section">
+    <div class="complexity-grid">
+      <div class="complexity-card">
+        <h4>CYCLOMATIC COMPLEXITY</h4>
+        <div class="meter"><div class="meter-fill ${cycloCls}" style="width:${cycloPct}%"></div></div>
+        <div class="meter-val">${cyclo}</div>
+        <div class="meter-desc">${cyclo<=5?'Low — Simple':cyclo<=10?'Moderate':'High — Complex'}</div>
+      </div>
+      <div class="complexity-card">
+        <h4>CODE LINES</h4>
+        <div class="meter"><div class="meter-fill ${linesCls}" style="width:${linesPct}%"></div></div>
+        <div class="meter-val">${lines}</div>
+        <div class="meter-desc">${lines<=30?'Compact':lines<=60?'Moderate':'Extended'}</div>
+      </div>
+      <div class="complexity-card">
+        <h4>FUNCTIONS</h4>
+        <div class="meter"><div class="meter-fill ${funcCls}" style="width:${funcPct}%"></div></div>
+        <div class="meter-val">${funcs}</div>
+        <div class="meter-desc">${funcs<=2?'Minimal':funcs<=4?'Moderate':'Many'}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   RENDER: TOKENS
+══════════════════════════════════════════════ */
+function getCategory(type){return{KEYWORD:'Reserved',TYPE:'Primitive',IDENTIFIER:'Symbol',NUMBER:'Literal',OPERATOR:'Operator',PUNCTUATION:'Delimiter',STRING:'String',FUNCTION:'Function',PREPROCESSOR:'Directive',CHAR_LITERAL:'Char'}[type]||'Other';}
+
+let allTokens = [];
+let activeFilters = new Set(['KEYWORD','TYPE','IDENTIFIER','NUMBER','OPERATOR','PUNCTUATION','STRING','FUNCTION','PREPROCESSOR']);
+
+function renderTokens(tokens, code) {
+  allTokens = tokens;
+  const counts={};tokens.forEach(t=>counts[t.type]=(counts[t.type]||0)+1);
+  const total=tokens.length,types=Object.keys(counts).length;
+  const kws=(counts.KEYWORD||0)+(counts.TYPE||0);
+
+  const statsHtml=`<div class="stats-row">
+    <div class="stat-block"><div class="stat-n">${total}</div><div class="stat-l">Tokens</div></div>
+    <div class="stat-block"><div class="stat-n">${types}</div><div class="stat-l">Types</div></div>
+    <div class="stat-block"><div class="stat-n">${kws}</div><div class="stat-l">Keywords</div></div>
+    <div class="stat-block"><div class="stat-n">${counts.IDENTIFIER||0}</div><div class="stat-l">Identifiers</div></div>
+  </div>`;
+
+  const complexityHtml = analyzeComplexity(code, tokens);
+
+  const filterHtml=`<div class="filter-chips" id="filterChips">
+    ${['KEYWORD','TYPE','IDENTIFIER','NUMBER','OPERATOR','PUNCTUATION','STRING','FUNCTION'].map(t=>`
+    <span class="filter-chip on" data-type="${t}" onclick="toggleFilter(this,'${t}')">${t}</span>`).join('')}
+  </div>`;
+
+  const streamHtml=tokens.map((t,i)=>{
+    const cls=TOKEN_CLASS[t.type]||'tok-punc';
+    return`<span class="chip ${cls}" style="animation-delay:${i*10}ms" data-type="${t.type}" title="${t.type}">${escHtml(t.value)}</span>`;
+  }).join('');
+
+  const exportHtml=`<div class="export-bar">
+    <button class="exp-btn exp-btn-outline" onclick="copyTokenJSON()">📋 Copy JSON</button>
+    <button class="exp-btn exp-btn-outline" onclick="downloadCSV()">⬇ Download CSV</button>
+    <button class="exp-btn exp-btn-solid" onclick="copyTokenStream()">⚡ Copy Stream</button>
+  </div>`;
+
+  const tableHtml=settings.table?`<div class="token-table-wrap">
+    <table class="token-table">
+      <thead><tr><th>#</th><th>Value</th><th>Type</th><th>Category</th></tr></thead>
+      <tbody id="tokenTableBody">${tokens.slice(0,50).map((t,i)=>`<tr>
+        <td class="td-num">${i+1}</td>
+        <td><span class="chip ${TOKEN_CLASS[t.type]||'tok-punc'}" style="animation:none">${escHtml(t.value)}</span></td>
+        <td class="td-type">${t.type}</td>
+        <td class="td-type">${getCategory(t.type)}</td>
+      </tr>`).join('')}
+      ${tokens.length>50?`<tr><td colspan="4" style="color:var(--muted);text-align:center;padding:12px;font-family:var(--font-code);font-size:.7rem">... and ${tokens.length-50} more tokens</td></tr>`:''}
+      </tbody>
+    </table>
+  </div>`:'' ;
+
+  const legendHtml=`<div class="legend-strip">
+    ${[['tok-keyword','Keywords'],['tok-type','Types'],['tok-id','Identifiers'],['tok-num','Numbers'],['tok-op','Operators'],['tok-punc','Punctuation'],['tok-str','Strings'],['tok-func','Functions']]
+    .map(([cls,lbl])=>`<div class="leg-item"><div class="leg-dot ${cls}"></div>${lbl}</div>`).join('')}
+  </div>`;
+
+  return`
+    <div class="sec-head"><div class="sec-head-num">01</div><div><div class="sec-head-title">LEXICAL ANALYSIS</div><div class="sec-head-sub">Token stream produced by the lexer/DFA</div></div></div>
+    ${statsHtml}
+    ${complexityHtml}
+    ${exportHtml}
+    <div class="search-bar">
+      <input class="search-input" id="tokenSearch" placeholder="Search tokens..." oninput="filterTokens()">
+    </div>
+    ${filterHtml}
+    <div class="chip-stream" id="chipStream">${streamHtml}</div>
+    ${legendHtml}
+    ${tableHtml}
+    <div class="info-row">
+      <div class="info-block"><h3>WHAT IS TOKENIZATION</h3><p>Lexical analysis breaks source code into a flat sequence of tokens — the smallest meaningful units. Each token carries a type (keyword, operator, identifier…) and its value. This is the first phase of compilation, performed by the <em>lexer</em>.</p></div>
+      <div class="info-block"><h3>CONNECTION TO AUTOMATA</h3><p>Tokenizers are implemented as <strong>Finite Automata (DFAs/NFAs)</strong>. Each token type is described by a regular expression, and the regex is compiled into a DFA that consumes characters and transitions between states until a token is recognized.</p></div>
+    </div>`;
+}
+
+function toggleFilter(el, type) {
+  el.classList.toggle('on');
+  if(activeFilters.has(type)) activeFilters.delete(type);
+  else activeFilters.add(type);
+  filterTokens();
+}
+
+function filterTokens() {
+  const q = (document.getElementById('tokenSearch')?.value||'').toLowerCase();
+  document.querySelectorAll('#chipStream .chip').forEach(chip=>{
+    const type = chip.dataset.type;
+    const val = chip.textContent.toLowerCase();
+    const show = activeFilters.has(type) && (!q || val.includes(q));
+    chip.style.display = show ? '' : 'none';
+  });
+}
+
+function copyTokenJSON() {
+  const data = allTokens.map(t=>({type:t.type,value:t.value}));
+  navigator.clipboard.writeText(JSON.stringify(data,null,2)).then(()=>toast('Tokens copied as JSON'));
+}
+function downloadCSV() {
+  const csv = 'Index,Value,Type,Category\n' + allTokens.map((t,i)=>`${i+1},"${t.value}",${t.type},${getCategory(t.type)}`).join('\n');
+  const a=document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download='tokens.csv'; a.click(); toast('CSV downloaded');
+}
+function copyTokenStream() {
+  navigator.clipboard.writeText(allTokens.map(t=>t.value).join(' ')).then(()=>toast('Token stream copied'));
+}
+
+/* ══════════════════════════════════════════════
+   RENDER: AST
+══════════════════════════════════════════════ */
+function renderAST(code){
+  const ast=buildAST(code);
+  return`
+    <div class="sec-head"><div class="sec-head-num">02</div><div><div class="sec-head-title">ABSTRACT SYNTAX TREE</div><div class="sec-head-sub">Hierarchical structural representation</div></div></div>
+    <div class="export-bar">
+      <button class="exp-btn exp-btn-outline" onclick="copyASTJSON()">📋 Copy AST JSON</button>
+    </div>
+    <div class="ast-wrap"><div class="ast-tree">${renderASTNode(ast)}</div></div>
+    <div class="info-row" style="margin-top:16px">
+      <div class="info-block"><h3>WHAT IS AN AST</h3><p>The Abstract Syntax Tree represents the hierarchical, grammatical structure of the program. Unlike the token stream, it captures nesting and relationships — <em>how</em> statements and expressions are composed, not just what characters appear.</p></div>
+      <div class="info-block"><h3>CONNECTION TO AUTOMATA</h3><p>ASTs are built by <strong>pushdown automata (PDAs)</strong> and <strong>context-free grammars (CFGs in the Chomsky sense)</strong>. A recursive-descent or LALR parser uses a stack to match grammar productions and build the tree bottom-up or top-down.</p></div>
+    </div>`;
+}
+
+let lastAST = null;
+function copyASTJSON(){
+  const code=document.getElementById('codeInput').value;
+  navigator.clipboard.writeText(JSON.stringify(buildAST(code),null,2)).then(()=>toast('AST JSON copied'));
+}
+
+/* ══════════════════════════════════════════════
+   RENDER: CFG
+══════════════════════════════════════════════ */
+function renderCFG(code){
+  const{nodes,edges}=buildCFGNodes(code);
+  const svg=renderGraphSVG(nodes,edges,'// Control Flow Graph','#60a5fa');
+  return`
+    <div class="sec-head"><div class="sec-head-num">03</div><div><div class="sec-head-title">CONTROL FLOW GRAPH</div><div class="sec-head-sub">Execution paths through the program</div></div></div>
+    <div class="graph-wrap">${svg}</div>
+    <div class="info-row" style="margin-top:16px">
+      <div class="info-block"><h3>WHAT IS A CFG</h3><p>A Control Flow Graph maps every possible execution path through a function. Nodes are <em>basic blocks</em> (straight-line code with no branches); edges represent control transfers — sequential, conditional, and looping paths.</p></div>
+      <div class="info-block"><h3>CONNECTION TO AUTOMATA</h3><p>A CFG is structurally a <strong>directed graph / finite automaton</strong> where each basic block is a state and each edge is a transition. It is the foundation for compiler optimizations like dead-code elimination and loop unrolling.</p></div>
+    </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   RENDER: DFG
+══════════════════════════════════════════════ */
+function renderDFG(code){
+  const{nodes,edges}=buildDFGNodes(code);
+  const svg=renderGraphSVG(nodes,edges,'// Data Flow Graph','#34d399');
+  return`
+    <div class="sec-head"><div class="sec-head-num">04</div><div><div class="sec-head-title">DATA FLOW GRAPH</div><div class="sec-head-sub">Variable definition and use chains</div></div></div>
+    <div class="graph-wrap">${svg}</div>
+    <div class="info-row" style="margin-top:16px">
+      <div class="info-block"><h3>WHAT IS A DFG</h3><p>The Data Flow Graph tracks how data values are produced (defined) and consumed (used) across the program. Edges represent <em>def-use</em> chains — a directed link from where a variable is assigned to every place it is subsequently read.</p></div>
+      <div class="info-block"><h3>CONNECTION TO AUTOMATA</h3><p>DFG analysis uses <strong>dataflow equations</strong> computed via fixed-point iteration on the CFG — a form of automaton state propagation. AI assistants exploit DFGs to reason about variable lifetimes and detect uninitialized reads.</p></div>
+    </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   RENDER: CPG
+══════════════════════════════════════════════ */
+function renderCPG(code){
+  const{nodes,edges}=buildCPGNodes(code);
+  const svg=renderGraphSVG(nodes,edges,'// Code Property Graph','#c800ff');
+  return`
+    <div class="sec-head"><div class="sec-head-num">05</div><div><div class="sec-head-title">CODE PROPERTY GRAPH</div><div class="sec-head-sub">Unified AST + CFG + DFG representation</div></div></div>
+    <div class="graph-wrap">${svg}</div>
+    <div style="display:flex;gap:8px;margin:12px 0;flex-wrap:wrap">
+      <span class="htag" style="background:rgba(96,165,250,0.15);color:#60a5fa;border:1.5px solid rgba(96,165,250,0.3)">■ Control (CFG)</span>
+      <span class="htag" style="background:rgba(52,211,153,0.15);color:#34d399;border:1.5px solid rgba(52,211,153,0.3)">■ Data (DFG)</span>
+      <span class="htag" style="background:rgba(200,0,255,0.15);color:#c800ff;border:1.5px solid rgba(200,0,255,0.3)">■ Syntax (AST)</span>
+    </div>
+    <div class="info-row">
+      <div class="info-block"><h3>WHAT IS A CPG</h3><p>The Code Property Graph merges the AST, CFG, and DFG into one unified graph. Introduced by Yamaguchi et al. (2014), it allows a single graph query to simultaneously reason about syntax, control, and data properties — ideal for vulnerability detection and AI analysis.</p></div>
+      <div class="info-block"><h3>WHY AI ASSISTANTS USE CPGs</h3><p>Tools like GitHub Copilot, DeepCode, and CodeQL build internal CPG-like representations. By encoding all program structure in one queryable graph, an AI can trace a tainted value from user input through control branches to a sink — reasoning the compiler itself does.</p></div>
+    </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   RENDER: THEORY
+══════════════════════════════════════════════ */
+function renderTheory(){
+  const cards=[
+    {icon:'🤖',title:'TOKENIZATION → DFA/NFA',tag:'Regular',tagColor:'var(--accent2)',color:'#6b8cff',p:'Regular expressions define token patterns. The lexer is compiled into a DFA that reads characters and transitions between states. Regular languages = Type-3 Chomsky hierarchy.'},
+    {icon:'🌳',title:'AST → PDA / CFG',tag:'Context-Free',tagColor:'var(--accent)',color:'#ff7a5c',p:'Parsing C uses Context-Free Grammars (Type-2). Recursive-descent or LALR parsers are Pushdown Automata — they use a stack to remember nesting depth and match productions.'},
+    {icon:'🔀',title:'CFG → GRAPH AUTOMATA',tag:'Directed Graph',tagColor:'var(--accent3)',color:'#00c45e',p:'Control Flow Graphs are directed finite-state machines over basic blocks. Reachability analysis explores CFGs using automaton traversal algorithms like BFS/DFS.'},
+    {icon:'📡',title:'DFG → DATAFLOW LATTICES',tag:'Fixed-Point',tagColor:'var(--accent4)',color:'#ffc107',p:'Dataflow analysis computes fixed-points over semi-lattices — a generalisation of automaton state propagation. Live variable analysis and constant folding use this framework.'},
+    {icon:'🔗',title:'CPG → GRAPH QUERIES',tag:'Unified',tagColor:'var(--accent5)',color:'#c800ff',p:'CPGs enable graph reachability queries combining all three automata types. Tools like Joern express vulnerability patterns as graph traversals — equivalent to a query automaton over the program graph.'},
+    {icon:'✅',title:'CHOMSKY HIERARCHY',tag:'Theory',tagColor:'var(--ink)',color:'var(--ink)',p:'Regular (tokens) ⊂ Context-Free (AST) ⊂ Context-Sensitive ⊂ Recursively Enumerable. C is almost context-free, placing it squarely in the PDA / Type-2 class.'},
+    {icon:'⚡',title:'TOKENIZATION IN LLMs',tag:'AI',tagColor:'var(--accent)',color:'#ff3f1f',p:'Transformers use Byte-Pair Encoding (BPE) — a data-driven tokenizer. Keywords become single tokens, reducing sequence length and improving attention efficiency.'},
+    {icon:'🧠',title:'STRUCTURAL ATTENTION',tag:'Neural',tagColor:'var(--accent2)',color:'#1a1aff',p:'Attention heads in code LLMs learn to attend along AST parent-child and CFG predecessor-successor edges — implicitly learning tree and graph structure from code corpora.'},
+    {icon:'🛡',title:'VULNERABILITY DETECTION',tag:'Security',tagColor:'var(--accent3)',color:'#00c45e',p:'Tools like CodeQL and Semgrep build explicit CPGs, then run graph queries. AI models combine neural embeddings of tokens with graph neural networks over ASTs to find security bugs.'},
+  ];
+
+  return`
+    <div class="sec-head"><div class="sec-head-num">06</div><div><div class="sec-head-title">THEORETICAL FOUNDATIONS</div><div class="sec-head-sub">Automata theory, formal languages &amp; AI code intelligence</div></div></div>
+    <div class="theory-hero">
+      <div class="theory-hero-title">AUTOMATA MEETS AI</div>
+      <div class="theory-hero-sub">Every phase of program analysis maps directly to a class of formal automata. Modern AI code assistants do not treat code as raw text — they process programs through multiple structural layers mirroring classical compiler front-ends.</div>
+    </div>
+    <div class="theory-grid">
+      ${cards.map(c=>`<div class="theory-card">
+        <div class="theory-card-icon" style="background:${c.tagColor}">${c.icon}</div>
+        <h4>${c.title}</h4>
+        <p>${c.p}</p>
+        <span class="theory-tag" style="background:rgba(8,9,12,0.08);color:var(--muted)">${c.tag}</span>
+      </div>`).join('')}
+    </div>
+    <div class="divider"></div>
+    <div class="sec-head"><div class="sec-head-num">↳</div><div><div class="sec-head-title">ANALYSIS PIPELINE</div></div></div>
+    <div class="graph-wrap" style="padding:0">${renderPipelineSVG()}</div>`;
+}
+
+function renderPipelineSVG(){
+  const steps=[{l:'Source Code',c:'#1a1a2e',t:'#6b7280'},{l:'Tokens (DFA)',c:'#1e3a5f',t:'#60a5fa'},{l:'AST (PDA)',c:'#2d1b69',t:'#c4b5fd'},{l:'CFG (Graph)',c:'#0f2a3d',t:'#34d399'},{l:'DFG (Lattice)',c:'#1a2e1a',t:'#86efac'},{l:'CPG (Unified)',c:'#2d1b2d',t:'#e879f9'},{l:'AI Output',c:'#2a1a0d',t:'#fbbf24'}];
+  const W=700,H=80,bw=82,bh=46,gap=10;const total=steps.length*(bw+gap)-gap;const sx=(W-total)/2;
+  const rects=steps.map((s,i)=>{const x=sx+i*(bw+gap);return`<g><rect x="${x}" y="${(H-bh)/2}" width="${bw}" height="${bh}" rx="8" fill="${s.c}" stroke="${s.t}" stroke-width="1.2"/>
+    <text x="${x+bw/2}" y="${H/2+4}" text-anchor="middle" fill="${s.t}" font-size="9.5" font-family="Space Mono" font-weight="700">${s.l}</text>
+    ${i<steps.length-1?`<text x="${x+bw+gap/2}" y="${H/2+5}" text-anchor="middle" fill="#374151" font-size="14">→</text>`:''}</g>`;}).join('');
+  return`<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:${H}px;background:rgba(8,9,12,0.96)">${rects}</svg>`;
+}
+
+/* ══════════════════════════════════════════════
+   EMPTY STATE
+══════════════════════════════════════════════ */
+function renderEmpty(){
+  return`<div class="empty-state">
+    <div class="empty-glyph">C</div>
+    <div class="empty-title">READY TO ANALYZE</div>
+    <div class="empty-desc">Select a sample or paste your C program, then click <strong>Analyze Program</strong> to visualize tokens, AST, CFG, DFG, and CPG.</div>
+    <button class="empty-shortcut" onclick="runAnalysis()">⚡ Run Analysis</button>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   PROGRESS BAR
+══════════════════════════════════════════════ */
+function setProgress(pct) {
+  document.getElementById('progressBar').style.width = pct + '%';
+}
+
+/* ══════════════════════════════════════════════
+   MAIN ANALYSIS
+══════════════════════════════════════════════ */
+async function runAnalysis(){
+  const code=document.getElementById('codeInput').value.trim();
+  if(!code){toast('Please enter a C program first','error');return;}
+
+  const btn=document.getElementById('analyzeBtn');
+  btn.classList.add('loading');
+  document.getElementById('btnText').textContent='Analyzing…';
+
+  setProgress(15);
+  await sleep(200);
+  setProgress(35);
+  await sleep(200);
+
+  const tokens=tokenize(code);
+  setProgress(55);
+  await sleep(150);
+
+  // Update sidebar mini stats
+  const funcs=(code.match(/\b(int|void|char|float|double)\s+\w+\s*\(/g)||[]).length;
+  const lines=code.split('\n').filter(l=>l.trim()).length;
+  document.getElementById('ms-tokens').textContent=tokens.length;
+  document.getElementById('ms-lines').textContent=lines;
+  document.getElementById('ms-funcs').textContent=funcs;
+
+  setProgress(75);
+  document.getElementById('view-0').innerHTML=renderTokens(tokens,code);
+  document.getElementById('view-1').innerHTML=renderAST(code);
+  document.getElementById('view-2').innerHTML=renderCFG(code);
+  document.getElementById('view-3').innerHTML=renderDFG(code);
+  document.getElementById('view-4').innerHTML=renderCPG(code);
+  document.getElementById('view-5').innerHTML=renderTheory();
+
+  setProgress(100);
+  await sleep(300);
+  setProgress(0);
+
+  btn.classList.remove('loading');
+  document.getElementById('btnText').textContent='✓ Re-Analyze';
+
+  switchTab(0);
+  toast(`Analysis complete — ${tokens.length} tokens found`);
+}
+
+function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
+
+function resetViews(){
+  document.querySelectorAll('.view-panel').forEach(v=>{v.innerHTML=renderEmpty();});
+  document.getElementById('btnText').textContent='⚡ Analyze Program';
+  document.getElementById('ms-tokens').textContent='—';
+  document.getElementById('ms-lines').textContent='—';
+  document.getElementById('ms-funcs').textContent='—';
+}
+
+/* ══════════════════════════════════════════════
+   TABS
+══════════════════════════════════════════════ */
+function switchTab(idx, desktopEl, mobileEl){
+  document.querySelectorAll('.tab-btn').forEach((t,i)=>t.classList.toggle('active',i===idx));
+  document.querySelectorAll('.mob-tab-btn').forEach((t,i)=>t.classList.toggle('active',i===idx));
+  document.querySelectorAll('.view-panel').forEach((v,i)=>v.classList.toggle('active',i===idx));
+  if(mobileEl) window.scrollTo({top:document.querySelector('.main-panel').offsetTop-70,behavior:'smooth'});
+}
+
+/* ══════════════════════════════════════════════
+   UTILS
+══════════════════════════════════════════════ */
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+/* ══════════════════════════════════════════════
+   EXPOSE TO GLOBAL SCOPE (required for onclick=)
+══════════════════════════════════════════════ */
+window.runAnalysis     = runAnalysis;
+window.switchTab       = switchTab;
+window.toggleSetting   = toggleSetting;
+window.selectSample    = selectSample;
+window.toggleFilter    = toggleFilter;
+window.filterTokens    = filterTokens;
+window.copyTokenJSON   = copyTokenJSON;
+window.downloadCSV     = downloadCSV;
+window.copyTokenStream = copyTokenStream;
+window.copyASTJSON     = copyASTJSON;
+
+/* ══════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════ */
+initSamples();
+document.querySelectorAll('.view-panel').forEach((v,i)=>{
+  v.innerHTML=renderEmpty();
+  v.classList.toggle('active', i===0);
+});
+</script>
+</body>
+</html>
